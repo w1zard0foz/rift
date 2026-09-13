@@ -91,6 +91,7 @@ uniform float uJagged;
 uniform float uNebula;
 uniform float uSwirl;
 uniform float uBleed;
+uniform float uProjectorBoost;
 
 // ---- Noise ----
 vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
@@ -297,6 +298,11 @@ void main() {
   }
   cosmos += starsCol * 1.8;
 
+  // Low-contrast projectors need the dim nebula lifted inside the rift.
+  // Black outside the opening remains mathematically black.
+  cosmos *= uProjectorBoost;
+  cosmos += vec3(0.012, 0.006, 0.022) * (uProjectorBoost - 1.0);
+
   // ---- Crack edge glow ----
   // Hot white-blue core glow right at the edge
   float edgeDist = distToCrack - hw * 0.5;
@@ -364,8 +370,18 @@ function createShader(type, source) {
   return s;
 }
 
+// Cheap Android projector chipsets struggle with the full procedural shader.
+// Compile a lighter variant automatically while preserving full quality on Macs.
+const projectorMode = /Android|AFT|SmartTV|TV Browser/i.test(navigator.userAgent)
+  && !/[Mm]acintosh/.test(navigator.userAgent);
+const activeFragSrc = projectorMode
+  ? fragSrc
+      .replace('for(int i = 0; i < 6; i++)', 'for(int i = 0; i < 4; i++)')
+      .replace('for(int i = 0; i < 3; i++)', 'for(int i = 0; i < 2; i++)')
+  : fragSrc;
+
 const vs = createShader(gl.VERTEX_SHADER, vertSrc);
-const fs = createShader(gl.FRAGMENT_SHADER, fragSrc);
+const fs = createShader(gl.FRAGMENT_SHADER, activeFragSrc);
 const prog = gl.createProgram();
 gl.attachShader(prog, vs);
 gl.attachShader(prog, fs);
@@ -392,11 +408,14 @@ const uJagged = gl.getUniformLocation(prog, 'uJagged');
 const uNebula = gl.getUniformLocation(prog, 'uNebula');
 const uSwirl = gl.getUniformLocation(prog, 'uSwirl');
 const uBleed = gl.getUniformLocation(prog, 'uBleed');
+const uProjectorBoost = gl.getUniformLocation(prog, 'uProjectorBoost');
 
 function resize() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = window.innerWidth * dpr;
-  canvas.height = window.innerHeight * dpr;
+  // CSS stretches this smaller Android framebuffer to the screen. On a ceiling
+  // the softness is negligible, while the GPU workload falls by roughly 60%.
+  const dpr = projectorMode ? 0.62 : Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(640, Math.floor(window.innerWidth * dpr));
+  canvas.height = Math.max(360, Math.floor(window.innerHeight * dpr));
   gl.viewport(0, 0, canvas.width, canvas.height);
 }
 window.addEventListener('resize', resize);
@@ -434,6 +453,7 @@ function frame() {
   gl.uniform1f(uNebula, parseFloat(els.nebula.value));
   gl.uniform1f(uSwirl, parseFloat(els.swirl.value));
   gl.uniform1f(uBleed, parseFloat(els.bleed.value));
+  gl.uniform1f(uProjectorBoost, projectorMode ? 1.9 : 1.0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(frame);
 }
