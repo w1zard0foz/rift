@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Ceiling Cosmos Portal</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --portal-x: 84vw;
+      --portal-y: 15vh;
+      --portal-size: min(70vw, 76vh);
+      --portal-rotation: -18deg;
+      --portal-brightness: 1;
+      --portal-speed: 1;
+      --portal-opacity: 1;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #000; }
+    body { cursor: none; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    body.controls-visible { cursor: default; }
+
+    .stage { position: fixed; inset: 0; background: #000; isolation: isolate; }
+    .portal {
+      position: absolute;
+      left: var(--portal-x);
+      top: var(--portal-y);
+      width: var(--portal-size);
+      aspect-ratio: 1.42;
+      transform: translate(-50%, -50%) rotate(var(--portal-rotation));
+      filter: brightness(var(--portal-brightness));
+      opacity: var(--portal-opacity);
+      isolation: isolate;
+    }
+
+    .void, .nebula, .stars, .rift-light, .rim, .haze { position: absolute; inset: 0; }
+    .void {
+      clip-path: polygon(2% 51%, 9% 45%, 14% 35%, 22% 31%, 27% 17%, 37% 25%, 43% 7%, 51% 23%, 59% 13%, 66% 29%, 76% 22%, 82% 38%, 97% 45%, 84% 54%, 92% 67%, 73% 63%, 65% 82%, 55% 69%, 45% 94%, 38% 72%, 25% 83%, 24% 65%, 8% 67%, 15% 55%);
+      background:
+        radial-gradient(ellipse at 62% 44%, rgba(236,229,255,.95) 0 1%, rgba(134,164,255,.8) 2%, transparent 7%),
+        radial-gradient(ellipse at 55% 47%, rgba(76,34,140,.85), transparent 36%),
+        radial-gradient(ellipse at 35% 52%, rgba(7,80,126,.65), transparent 45%),
+        radial-gradient(ellipse at center, #07112e 0 42%, #01030b 78%, #000 100%);
+      box-shadow: inset 0 0 6vmin 2vmin #000;
+      overflow: hidden;
+    }
+
+    .nebula {
+      inset: -30%;
+      background:
+        radial-gradient(ellipse at 35% 55%, transparent 0 18%, rgba(100,64,188,.36) 29%, transparent 47%),
+        radial-gradient(ellipse at 66% 39%, rgba(61,145,185,.3), transparent 43%),
+        conic-gradient(from 20deg at 54% 49%, transparent, rgba(130,76,190,.18), transparent 38%, rgba(61,142,184,.18), transparent 70%);
+      mix-blend-mode: screen;
+      animation: drift calc(42s / var(--portal-speed)) linear infinite;
+    }
+
+    .stars { overflow: hidden; }
+    .star {
+      position: absolute;
+      width: var(--s); height: var(--s); border-radius: 50%;
+      left: var(--x); top: var(--y);
+      background: rgba(255,255,255,var(--a));
+      box-shadow: 0 0 calc(var(--s) * 3) rgba(185,215,255,.8);
+      animation: twinkle calc(var(--d) / var(--portal-speed)) ease-in-out infinite alternate;
+      animation-delay: var(--delay);
+    }
+
+    .rift-light {
+      clip-path: polygon(1% 50%, 9% 43%, 13% 33%, 21% 29%, 27% 14%, 37% 22%, 43% 3%, 51% 20%, 60% 10%, 67% 26%, 77% 18%, 84% 35%, 100% 44%, 87% 55%, 96% 69%, 75% 66%, 66% 86%, 55% 72%, 45% 99%, 37% 76%, 23% 88%, 21% 69%, 4% 70%, 12% 56%);
+      background: radial-gradient(ellipse, rgba(167,197,255,.68), rgba(88,119,220,.2) 46%, transparent 70%);
+      filter: blur(1.4vmin);
+      opacity: .54;
+      z-index: -2;
+      animation: breathe calc(8s / var(--portal-speed)) ease-in-out infinite;
+    }
+
+    .rim {
+      inset: -1.1%;
+      clip-path: polygon(1% 50%, 9% 43%, 13% 33%, 21% 29%, 27% 14%, 37% 22%, 43% 3%, 51% 20%, 60% 10%, 67% 26%, 77% 18%, 84% 35%, 100% 44%, 87% 55%, 96% 69%, 75% 66%, 66% 86%, 55% 72%, 45% 99%, 37% 76%, 23% 88%, 21% 69%, 4% 70%, 12% 56%);
+      background: rgba(150,188,255,.3);
+      filter: blur(.55vmin);
+      z-index: -1;
+      animation: rimPulse calc(5.5s / var(--portal-speed)) ease-in-out infinite alternate;
+    }
+
+    .haze {
+      inset: -9%;
+      background: radial-gradient(ellipse, rgba(64,89,170,.18), transparent 60%);
+      filter: blur(3vmin);
+      z-index: -3;
+      animation: breathe calc(11s / var(--portal-speed)) ease-in-out infinite reverse;
+    }
+
+    .controls {
+      position: fixed; left: 18px; bottom: 18px; z-index: 10;
+      width: min(380px, calc(100vw - 36px)); padding: 15px 16px;
+      border: 1px solid rgba(255,255,255,.18); border-radius: 12px;
+      color: #dce7ff; background: rgba(5,8,15,.88); backdrop-filter: blur(16px);
+      box-shadow: 0 12px 50px rgba(0,0,0,.65);
+      opacity: 0; pointer-events: none; transform: translateY(10px);
+      transition: opacity .2s, transform .2s;
+    }
+    .controls-visible .controls { opacity: 1; pointer-events: auto; transform: none; }
+    .controls h1 { margin: 0 0 3px; font: 600 14px/1.2 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+    .controls p { margin: 0 0 12px; color: #8e9ab2; font-size: 11px; }
+    .row { display: grid; grid-template-columns: 92px 1fr 42px; align-items: center; gap: 8px; margin: 8px 0; font-size: 11px; }
+    input[type="range"] { width: 100%; accent-color: #9cb7ff; }
+    .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+    button { border: 1px solid rgba(255,255,255,.2); border-radius: 7px; padding: 7px 9px; color: #dce7ff; background: #111827; font: inherit; cursor: pointer; }
+    button:hover { background: #1d2940; }
+    .hint { position: fixed; right: 14px; bottom: 12px; color: rgba(255,255,255,.3); font-size: 10px; letter-spacing: .06em; transition: opacity 2s; }
+    body:not(.controls-visible) .hint.fade { opacity: 0; }
+
+    @keyframes drift { to { transform: rotate(360deg) scale(1.08); } }
+    @keyframes twinkle { from { opacity: .22; transform: scale(.7); } to { opacity: 1; transform: scale(1.35); } }
+    @keyframes breathe { 50% { transform: scale(1.035); opacity: .72; } }
+    @keyframes rimPulse { from { opacity: .25; } to { opacity: .58; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-play-state: paused !important; } }
+  </style>
+</head>
+<body>
+  <main class="stage" aria-label="Animated cosmic ceiling portal">
+    <section class="portal" id="portal">
+      <div class="haze"></div><div class="rim"></div>
+      <div class="void"><div class="nebula"></div><div class="stars" id="stars"></div></div>
+      <div class="rift-light"></div>
+    </section>
+  </main>
+
+  <aside class="controls" aria-label="Portal calibration controls">
+    <h1>Portal calibration</h1>
+    <p>Press H to hide. Arrow keys move. Shift + arrows moves faster.</p>
+    <label class="row">Horizontal <input id="x" type="range" min="-10" max="110" value="84"><output>84%</output></label>
+    <label class="row">Vertical <input id="y" type="range" min="-10" max="110" value="15"><output>15%</output></label>
+    <label class="row">Size <input id="size" type="range" min="20" max="130" value="70"><output>70</output></label>
+    <label class="row">Rotation <input id="rotation" type="range" min="-180" max="180" value="-18"><output>-18°</output></label>
+    <label class="row">Brightness <input id="brightness" type="range" min="20" max="160" value="100"><output>100%</output></label>
+    <label class="row">Motion <input id="speed" type="range" min="10" max="250" value="100"><output>100%</output></label>
+    <div class="actions"><button id="full">Fullscreen (F)</button><button id="corner">Next corner (C)</button><button id="reset">Reset</button></div>
+  </aside>
+  <div class="hint">H · CONTROLS &nbsp; F · FULLSCREEN</div>
+
+  <script>
+    (() => {
+      const root = document.documentElement;
+      const controls = ['x','y','size','rotation','brightness','speed'];
+      const defaults = { x:84, y:15, size:70, rotation:-18, brightness:100, speed:100 };
+      const saved = JSON.parse(localStorage.getItem('ceilingPortal') || '{}');
+      const state = {...defaults, ...saved};
+      const apply = () => {
+        root.style.setProperty('--portal-x', state.x + 'vw');
+        root.style.setProperty('--portal-y', state.y + 'vh');
+        root.style.setProperty('--portal-size', `min(${state.size}vw, ${state.size * 1.08}vh)`);
+        root.style.setProperty('--portal-rotation', state.rotation + 'deg');
+        root.style.setProperty('--portal-brightness', state.brightness / 100);
+        root.style.setProperty('--portal-speed', state.speed / 100);
+        controls.forEach(id => { const el = document.getElementById(id); el.value = state[id]; el.nextElementSibling.value = id === 'rotation' ? state[id]+'°' : (['brightness','speed'].includes(id) ? state[id]+'%' : (['x','y'].includes(id) ? state[id]+'%' : state[id])); });
+        localStorage.setItem('ceilingPortal', JSON.stringify(state));
+      };
+
+      const stars = document.getElementById('stars');
+      let seed = 271828;
+      const random = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296);
+      for (let i=0; i<150; i++) {
+        const s = document.createElement('i'); s.className = 'star';
+        s.style.cssText = `--x:${random()*100}%;--y:${random()*100}%;--s:${.5+random()*2.2}px;--a:${.28+random()*.72};--d:${2.5+random()*7}s;--delay:${-random()*8}s`;
+        stars.appendChild(s);
+      }
+      controls.forEach(id => document.getElementById(id).addEventListener('input', e => { state[id] = +e.target.value; apply(); }));
+      const fullscreen = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+      document.getElementById('full').onclick = fullscreen;
+      document.getElementById('reset').onclick = () => { Object.assign(state, defaults); apply(); };
+      const corners = [[84,15,-18],[16,15,18],[84,85,18],[16,85,-18]]; let cornerIndex = 0;
+      const nextCorner = () => { cornerIndex=(cornerIndex+1)%4; [state.x,state.y,state.rotation]=corners[cornerIndex]; apply(); };
+      document.getElementById('corner').onclick = nextCorner;
+      document.addEventListener('keydown', e => {
+        const step=e.shiftKey?3:.6;
+        if(e.key.toLowerCase()==='h') document.body.classList.toggle('controls-visible');
+        else if(e.key.toLowerCase()==='f') fullscreen();
+        else if(e.key.toLowerCase()==='c') nextCorner();
+        else if(e.key==='ArrowLeft') state.x-=step;
+        else if(e.key==='ArrowRight') state.x+=step;
+        else if(e.key==='ArrowUp') state.y-=step;
+        else if(e.key==='ArrowDown') state.y+=step;
+        else return;
+        if(e.key.startsWith('Arrow')) { e.preventDefault(); apply(); }
+      });
+      addEventListener('pointermove', () => document.querySelector('.hint').classList.add('fade'), {once:true});
+      apply();
+    })();
+  </script>
+</body>
+</html>
