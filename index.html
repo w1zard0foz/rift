@@ -1,544 +1,82 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Cosmos Rift</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<title>Ceiling Rift</title>
 <style>
-  * { margin: 0; padding: 0; }
-  body { background: #000; overflow: hidden; cursor: none; }
-  canvas { display: block; width: 100vw; height: 100vh; }
-  #controls {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    z-index: 10;
-    font-family: -apple-system, sans-serif;
-    font-size: 13px;
-    color: rgba(255,255,255,0.6);
-    background: rgba(0,0,0,0.7);
-    padding: 16px 20px;
-    border-radius: 10px;
-    backdrop-filter: blur(10px);
-    cursor: default;
-    opacity: 0;
-    transition: opacity 0.4s;
-    max-width: 280px;
-  }
-  body:hover #controls { opacity: 1; }
-  #controls label {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    gap: 12px;
-  }
-  #controls label span { white-space: nowrap; }
-  #controls label:last-of-type { margin-bottom: 0; }
-  #controls input[type="range"] {
-    width: 130px;
-    accent-color: #667;
-  }
-  #controls button {
-    margin-top: 10px;
-    width: 100%;
-    padding: 8px;
-    border: 1px solid rgba(255,255,255,0.2);
-    background: rgba(255,255,255,0.05);
-    color: rgba(255,255,255,0.7);
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 13px;
-  }
-  #controls button:hover { background: rgba(255,255,255,0.1); }
+:root{color-scheme:dark;--x:0vw;--y:0vh;--scale:1;--brightness:1.12;--speed:18s}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#000}
+body{font-family:system-ui,sans-serif;cursor:none}
+body.ui-active{cursor:default}
+.stage{position:fixed;inset:0;overflow:hidden;background:#000}
+.scene{position:absolute;inset:0;transform:translate(var(--x),var(--y)) scale(var(--scale));transform-origin:38.5% 50%;filter:brightness(var(--brightness));will-change:transform}
+.base,.moving-cosmos{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;user-select:none;pointer-events:none}
+.base{z-index:1}
+.window{position:absolute;inset:0;z-index:2;clip-path:polygon(36.6% 13%,42.8% 16%,46.7% 27%,48.5% 43%,47.6% 61%,44.3% 76%,39% 86%,34.3% 80%,30.6% 68%,28.7% 52%,29.7% 36%,32.1% 22%);overflow:hidden;opacity:.48;mix-blend-mode:screen}
+.moving-cosmos{transform-origin:38.5% 50%;animation:drift var(--speed) ease-in-out infinite alternate;filter:saturate(1.3) contrast(1.08)}
+.energy{position:absolute;inset:0;z-index:3;clip-path:polygon(36.6% 13%,42.8% 16%,46.7% 27%,48.5% 43%,47.6% 61%,44.3% 76%,39% 86%,34.3% 80%,30.6% 68%,28.7% 52%,29.7% 36%,32.1% 22%);background:radial-gradient(ellipse at 39% 49%,transparent 0 23%,rgba(58,34,255,.07) 42%,rgba(117,70,255,.12) 58%,transparent 73%);mix-blend-mode:screen;animation:pulse calc(var(--speed)*.62) ease-in-out infinite alternate;pointer-events:none}
+.controls{position:fixed;right:16px;bottom:16px;z-index:10;width:min(340px,calc(100vw - 32px));padding:14px 16px;border:1px solid rgba(255,255,255,.16);border-radius:11px;background:rgba(2,3,8,.88);color:#d9e1ff;box-shadow:0 12px 44px rgba(0,0,0,.7);opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .25s,transform .25s}
+.ui-active .controls{opacity:1;transform:none;pointer-events:auto}
+.controls strong{display:block;margin-bottom:3px;font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.controls small{display:block;margin-bottom:10px;color:#8790aa}
+.row{display:grid;grid-template-columns:78px 1fr 38px;gap:8px;align-items:center;margin:8px 0;font-size:11px}
+input{width:100%;accent-color:#745dff}
+.buttons{display:flex;gap:7px;margin-top:11px}
+button{flex:1;padding:7px;border:1px solid rgba(255,255,255,.17);border-radius:7px;background:#101426;color:#d9e1ff}
+@keyframes drift{from{transform:rotate(-1.4deg) scale(1.015)}to{transform:rotate(1.4deg) scale(1.055)}}
+@keyframes pulse{from{opacity:.38}to{opacity:.95}}
+@media(prefers-reduced-motion:reduce){.moving-cosmos,.energy{animation:none}}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-
-<div id="controls">
-  <label><span>Speed</span> <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1"></label>
-  <label><span>Vortex size</span> <input type="range" id="crackWidth" min="0.01" max="0.12" step="0.005" value="0.045"></label>
-  <label><span>Glow intensity</span> <input type="range" id="glow" min="0.5" max="4" step="0.1" value="2"></label>
-  <label><span>Glow reach</span> <input type="range" id="glowReach" min="0.02" max="0.2" step="0.005" value="0.08"></label>
-  <label><span>Jaggedness</span> <input type="range" id="jagged" min="0.5" max="4" step="0.1" value="2"></label>
-  <label><span>Nebula depth</span> <input type="range" id="nebula" min="0.3" max="2" step="0.1" value="1"></label>
-  <label><span>Cosmos swirl</span> <input type="range" id="swirl" min="0" max="2" step="0.1" value="0.8"></label>
-  <label><span>Light bleed</span> <input type="range" id="bleed" min="0" max="1" step="0.05" value="0.3"></label>
-  <button onclick="toggleFullscreen()">Fullscreen</button>
-</div>
-
+<main class="stage">
+  <div class="scene" id="scene">
+    <img class="base" src="assets/rift-projector.png" alt="">
+    <div class="window"><img class="moving-cosmos" src="assets/rift-projector.png" alt=""></div>
+    <div class="energy"></div>
+  </div>
+</main>
+<aside class="controls" id="controls">
+  <strong>Rift calibration</strong>
+  <small>Panel hides after 30 seconds. Move pointer to restore.</small>
+  <label class="row">Horizontal<input id="x" type="range" min="-40" max="40" value="0"><output>0</output></label>
+  <label class="row">Vertical<input id="y" type="range" min="-40" max="40" value="0"><output>0</output></label>
+  <label class="row">Size<input id="scale" type="range" min="60" max="180" value="100"><output>100</output></label>
+  <label class="row">Brightness<input id="brightness" type="range" min="60" max="180" value="112"><output>112</output></label>
+  <label class="row">Motion<input id="motion" type="range" min="8" max="45" value="18"><output>18</output></label>
+  <div class="buttons"><button id="full">Fullscreen</button><button id="reset">Reset</button></div>
+</aside>
 <script>
-const canvas = document.getElementById('c');
-const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-
-const vertSrc = `
-  attribute vec2 pos;
-  void main() { gl_Position = vec4(pos, 0.0, 1.0); }
-`;
-
-const fragSrc = `
-#ifdef GL_ES
-precision highp float;
-#endif
-
-uniform vec2 uRes;
-uniform float uTime;
-uniform float uSpeed;
-uniform float uCrackWidth;
-uniform float uGlow;
-uniform float uGlowReach;
-uniform float uJagged;
-uniform float uNebula;
-uniform float uSwirl;
-uniform float uBleed;
-uniform float uProjectorBoost;
-
-// ---- Noise ----
-vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
-vec4 mod289(vec4 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
-vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
-vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
-
-float snoise(vec3 v) {
-  const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-  const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-  vec3 i = floor(v + dot(v, C.yyy));
-  vec3 x0 = v - i + dot(i, C.xxx);
-  vec3 g = step(x0.yzx, x0.xyz);
-  vec3 l = 1.0 - g;
-  vec3 i1 = min(g.xyz, l.zxy);
-  vec3 i2 = max(g.xyz, l.zxy);
-  vec3 x1 = x0 - i1 + C.xxx;
-  vec3 x2 = x0 - i2 + C.yyy;
-  vec3 x3 = x0 - D.yyy;
-  i = mod289(i);
-  vec4 p = permute(permute(permute(
-    i.z + vec4(0.0, i1.z, i2.z, 1.0))
-    + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-    + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-  float n_ = 0.142857142857;
-  vec3 ns = n_ * D.wyz - D.xzx;
-  vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
-  vec4 x_ = floor(j * ns.z);
-  vec4 y_ = floor(j - 7.0 * x_);
-  vec4 x = x_ * ns.x + ns.yyyy;
-  vec4 y = y_ * ns.x + ns.yyyy;
-  vec4 h = 1.0 - abs(x) - abs(y);
-  vec4 b0 = vec4(x.xy, y.xy);
-  vec4 b1 = vec4(x.zw, y.zw);
-  vec4 s0 = floor(b0)*2.0 + 1.0;
-  vec4 s1 = floor(b1)*2.0 + 1.0;
-  vec4 sh = -step(h, vec4(0.0));
-  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
-  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-  vec3 p0 = vec3(a0.xy, h.x);
-  vec3 p1 = vec3(a0.zw, h.y);
-  vec3 p2 = vec3(a1.xy, h.z);
-  vec3 p3 = vec3(a1.zw, h.w);
-  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
-  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-  m = m * m;
-  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+(()=>{
+const root=document.documentElement;
+const defaults={x:0,y:0,scale:100,brightness:112,motion:18};
+let state={...defaults,...JSON.parse(localStorage.getItem('riftSettings')||'{}')};
+const ids=Object.keys(defaults);
+function apply(){
+ root.style.setProperty('--x',state.x+'vw');
+ root.style.setProperty('--y',state.y+'vh');
+ root.style.setProperty('--scale',state.scale/100);
+ root.style.setProperty('--brightness',state.brightness/100);
+ root.style.setProperty('--speed',state.motion+'s');
+ ids.forEach(id=>{const el=document.getElementById(id);el.value=state[id];el.nextElementSibling.value=state[id]});
+ localStorage.setItem('riftSettings',JSON.stringify(state));
 }
-
-float fbm(vec3 p) {
-  float v = 0.0, a = 0.5, f = 1.0;
-  for(int i = 0; i < 6; i++) {
-    v += a * snoise(p * f);
-    f *= 2.1; a *= 0.48;
-  }
-  return v;
+ids.forEach(id=>document.getElementById(id).addEventListener('input',e=>{state[id]=+e.target.value;apply()}));
+let hideTimer;
+function wake(){
+ document.body.classList.add('ui-active');
+ clearTimeout(hideTimer);
+ hideTimer=setTimeout(()=>document.body.classList.remove('ui-active'),30000);
 }
-
-float hash(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
-// ---- Crack shape ----
-// The crack is a jagged line running diagonally, like the Doctor Who crack.
-// We define it as a curve and measure distance to it.
-
-float crackCurve(float x, float t) {
-  // Base curve - a slight arc
-  float base = (x - 0.5) * 0.15;
-  // Jagged distortion at multiple frequencies
-  float jag = 0.0;
-  jag += snoise(vec3(x * 3.0, t * 0.15, 0.0)) * 0.06 * uJagged;
-  jag += snoise(vec3(x * 7.0, t * 0.12, 5.0)) * 0.03 * uJagged;
-  jag += snoise(vec3(x * 15.0, t * 0.08, 10.0)) * 0.012 * uJagged;
-  jag += snoise(vec3(x * 30.0, t * 0.05, 15.0)) * 0.005 * uJagged;
-  return base + jag;
-}
-
-// Variable width along the crack - wide in middle, tapering to sharp points
-float crackHalfWidth(float x) {
-  // x is parametric position along crack, 0-1
-  // Taper at both ends, widest around 0.4-0.6
-  float taper = smoothstep(0.0, 0.15, x) * smoothstep(1.0, 0.8, x);
-  // Add some irregularity to width
-  float widthVar = 0.7 + 0.3 * snoise(vec3(x * 8.0, 3.0, 0.0));
-  return uCrackWidth * taper * widthVar;
-}
-
-// ---- Stars for the cosmos inside ----
-float starField(vec2 uv, float scale, float t) {
-  vec2 gv = fract(uv * scale) - 0.5;
-  vec2 id = floor(uv * scale);
-  float rnd = hash(id);
-  float size = smoothstep(0.95, 1.0, rnd) * 0.015;
-  size += smoothstep(0.85, 0.95, rnd) * 0.006;
-  float d = length(gv);
-  float twinkle = sin(t * (2.0 + rnd * 4.0) + rnd * 6.28) * 0.4 + 0.6;
-  return smoothstep(size, size * 0.05, d) * twinkle * step(0.78, rnd);
-}
-
-vec3 starColor(vec2 uv, float scale) {
-  vec2 id = floor(uv * scale);
-  float r = hash(id + 99.0);
-  vec3 cool = vec3(0.7, 0.8, 1.0);
-  vec3 warm = vec3(1.0, 0.9, 0.7);
-  return mix(cool, warm, r);
-}
-
-void main() {
-  vec2 uv = gl_FragCoord.xy / uRes;
-  float aspect = uRes.x / uRes.y;
-  float t = uTime * uSpeed;
-
-  // ---- Define the crack in screen space ----
-  // Crack runs roughly from lower-left to upper-right area,
-  // positioned in the upper portion for ceiling projection.
-  // We rotate and position the crack.
-
-  // Transform UV to crack space
-  // Crack center at (0.35, 0.6), angled ~30 degrees
-  float angle = 0.45;
-  float cosA = cos(angle), sinA = sin(angle);
-  vec2 center = vec2(0.35, 0.6);
-  vec2 p = uv - center;
-  p.x *= aspect;
-  // Rotate
-  vec2 rp = vec2(p.x * cosA + p.y * sinA, -p.x * sinA + p.y * cosA);
-
-  // Parametric position along crack (0-1 maps to crack length)
-  float crackLen = 0.7;
-  float along = (rp.x / crackLen) + 0.5; // 0 to 1 along the crack
-
-  // Get the crack's y-offset at this x position
-  float crackY = crackCurve(along, t);
-
-  // Distance from this pixel to the crack centerline
-  float distToCrack = abs(rp.y - crackY);
-
-  // Half-width at this position
-  float hw = crackHalfWidth(along);
-
-  // Are we inside the crack?
-  float inCrack = 1.0 - smoothstep(hw * 0.6, hw, distToCrack);
-
-  // Only where the crack exists (along 0-1 range)
-  float alongMask = smoothstep(-0.02, 0.05, along) * smoothstep(1.02, 0.95, along);
-  inCrack *= alongMask;
-
-  // ---- Cosmos visible through the crack ----
-  // Swirling deep space
-  vec2 cosmosUV = uv;
-  // Add swirl distortion
-  float swirlAngle = fbm(vec3(uv * 2.0, t * 0.03)) * uSwirl * 1.5;
-  float sc = cos(swirlAngle), ss = sin(swirlAngle);
-  cosmosUV = vec2(cosmosUV.x * sc - cosmosUV.y * ss,
-                  cosmosUV.x * ss + cosmosUV.y * sc);
-
-  vec2 cuvA = vec2(cosmosUV.x * aspect, cosmosUV.y);
-
-  // Deep nebula layers
-  vec3 n1p = vec3(cuvA * 3.0 + vec2(t * 0.012, t * 0.008), t * 0.006);
-  float neb1 = fbm(n1p) * uNebula;
-  vec3 n2p = vec3(cuvA * 2.0 + vec2(-t * 0.01, t * 0.007), t * 0.005 + 5.0);
-  float neb2 = fbm(n2p) * uNebula;
-  vec3 n3p = vec3(cuvA * 4.5 + vec2(t * 0.005, -t * 0.009), t * 0.004 + 10.0);
-  float neb3 = fbm(n3p) * uNebula * 0.7;
-
-  // Cosmos colors - rich purples, deep blues, hints of magenta
-  vec3 voidBlack  = vec3(0.005, 0.002, 0.01);
-  vec3 deepPurple = vec3(0.15, 0.02, 0.2);
-  vec3 cosmicBlue = vec3(0.02, 0.04, 0.18);
-  vec3 magenta    = vec3(0.2, 0.01, 0.15);
-  vec3 hotPurple  = vec3(0.3, 0.05, 0.35);
-  vec3 darkTeal   = vec3(0.01, 0.08, 0.12);
-
-  vec3 cosmos = voidBlack;
-  cosmos += deepPurple * smoothstep(-0.2, 0.5, neb1) * 1.3;
-  cosmos += cosmicBlue * smoothstep(-0.1, 0.6, neb2) * 0.8;
-  cosmos += magenta * smoothstep(0.1, 0.7, neb1 * neb2 * 4.0) * 1.0;
-  cosmos += hotPurple * smoothstep(0.3, 0.8, neb3) * 0.6;
-  cosmos += darkTeal * smoothstep(-0.2, 0.4, neb2 - neb1) * 0.5;
-
-  // Bright nebula wisps deep inside
-  float wisp = smoothstep(0.5, 0.7, neb1) * smoothstep(0.4, 0.6, neb2);
-  cosmos += vec3(0.25, 0.1, 0.35) * wisp * uNebula;
-
-  // Galaxy swirl hint
-  float galaxy = smoothstep(0.55, 0.65, neb3) * smoothstep(0.45, 0.6, neb1);
-  cosmos += vec3(0.4, 0.2, 0.5) * galaxy * 0.4;
-
-  // Stars inside the rift
-  float starsTotal = 0.0;
-  vec3 starsCol = vec3(0.0);
-  for(int i = 0; i < 3; i++) {
-    float fi = float(i);
-    float scale = 50.0 + fi * 40.0;
-    vec2 drift = vec2(t * 0.01 * (1.0 + fi * 0.5), t * 0.005 * (1.0 + fi * 0.3));
-    float sf = starField(cuvA + drift, scale, t);
-    starsCol += starColor(cuvA + drift, scale) * sf;
-    starsTotal += sf;
-  }
-  cosmos += starsCol * 1.8;
-
-  // Low-contrast projectors need the dim nebula lifted inside the rift.
-  // Black outside the opening remains mathematically black.
-  cosmos *= uProjectorBoost;
-  cosmos += vec3(0.012, 0.006, 0.022) * (uProjectorBoost - 1.0);
-
-  // ---- Crack edge glow ----
-  // Hot white-blue core glow right at the edge
-  float edgeDist = distToCrack - hw * 0.5;
-  float coreGlow = exp(-max(edgeDist, 0.0) * (40.0 / max(uGlowReach, 0.01))) * alongMask;
-
-  // Wider atmospheric glow
-  float atmoGlow = exp(-max(distToCrack - hw * 0.3, 0.0) * (8.0 / max(uGlowReach, 0.01))) * alongMask;
-
-  // Pulsing energy along the crack
-  float pulse = sin(along * 20.0 - t * 0.8) * 0.3 + 0.7;
-  float pulse2 = sin(along * 35.0 + t * 0.5) * 0.2 + 0.8;
-
-  // Glow colors
-  vec3 coreColor = vec3(0.9, 0.85, 1.0); // near-white with slight purple
-  vec3 midColor = vec3(0.5, 0.3, 0.9);    // purple
-  vec3 outerColor = vec3(0.2, 0.1, 0.5);  // deep purple
-
-  vec3 glowCol = vec3(0.0);
-  glowCol += coreColor * coreGlow * 1.5 * pulse * uGlow;
-  glowCol += midColor * atmoGlow * 0.6 * pulse2 * uGlow;
-  glowCol += outerColor * atmoGlow * 0.3 * uGlow;
-
-  // ---- Light bleed tendrils ----
-  // Faint wisps of light that leak out from the crack
-  float tendril1 = snoise(vec3(rp * 8.0, t * 0.1));
-  float tendril2 = snoise(vec3(rp * 15.0, t * 0.07 + 5.0));
-  float tendrilMask = exp(-max(distToCrack - hw, 0.0) * 4.0) * alongMask;
-  float tendrils = max(tendril1 * 0.5 + tendril2 * 0.3, 0.0) * tendrilMask;
-  vec3 tendrilCol = vec3(0.15, 0.05, 0.3) * tendrils * uBleed;
-
-  // ---- Compose ----
-  vec3 col = vec3(0.0);
-
-  // Cosmos visible through the crack
-  col += cosmos * inCrack;
-
-  // Edge glow on top
-  col += glowCol;
-
-  // Light bleed
-  col += tendrilCol;
-
-  // Very faint ambient spill near the crack
-  float ambientSpill = exp(-distToCrack * 3.0) * alongMask * 0.02 * uBleed;
-  col += vec3(0.1, 0.03, 0.15) * ambientSpill;
-
-  // Tone mapping - keep it filmic
-  col = col / (col + 0.8);
-  col = pow(col, vec3(0.92));
-
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
-
-// Lightweight blue-black vortex: designed for weak projector GPUs.
-// It uses polar bands and inexpensive hashes instead of multi-octave 3D noise.
-const vortexFragSrc = `
-#ifdef GL_ES
-precision mediump float;
-#endif
-uniform vec2 uRes;
-uniform float uTime;
-uniform float uSpeed;
-uniform float uCrackWidth;
-uniform float uGlow;
-uniform float uGlowReach;
-uniform float uJagged;
-uniform float uNebula;
-uniform float uSwirl;
-uniform float uBleed;
-uniform float uProjectorBoost;
-
-float hash21(vec2 p) {
-  p = fract(p * vec2(123.34, 345.45));
-  p += dot(p, p + 34.345);
-  return fract(p.x * p.y);
-}
-
-void main() {
-  vec2 uv = gl_FragCoord.xy / uRes;
-  float aspect = uRes.x / uRes.y;
-  vec2 p = uv - vec2(0.36, 0.58);
-  p.x *= aspect;
-  float r = length(p);
-  float a = atan(p.y, p.x);
-  float t = uTime * uSpeed;
-
-  float radius = 0.30 + uCrackWidth * 1.25;
-  float teeth = sin(a * 7.0 + 0.8) * 0.035
-              + sin(a * 13.0 - 1.7) * 0.018
-              + sin(a * 23.0 + 2.4) * 0.009;
-  teeth *= clamp(uJagged * 0.58, 0.35, 2.1);
-  float edge = radius * (1.0 + teeth);
-  float inside = smoothstep(edge + 0.008, edge - 0.012, r);
-
-  // Broad rotating arms, with a dark central well.
-  float spiral = a * 2.0 - r * (24.0 + uSwirl * 7.0) + t * 0.34;
-  float arms = 0.5 + 0.5 * sin(spiral + sin(a * 3.0 - t * 0.11) * 0.8);
-  arms = pow(arms, 2.0);
-  float fine = 0.5 + 0.5 * sin(a * 5.0 - r * 43.0 + t * 0.22);
-  float cloud = clamp(arms * 0.82 + fine * 0.20, 0.0, 1.0) * uNebula;
-  float centerWell = smoothstep(0.035, 0.17, r);
-  float outerFalloff = smoothstep(edge, edge * 0.34, r);
-
-  vec3 deep = vec3(0.002, 0.0, 0.025);
-  vec3 cobalt = vec3(0.015, 0.025, 0.72);
-  vec3 electricBlue = vec3(0.035, 0.08, 1.15);
-  vec3 col = mix(deep, cobalt, cloud * 0.72);
-  col += electricBlue * pow(cloud, 3.0) * 0.52;
-  col *= centerWell * outerFalloff * uProjectorBoost;
-
-  // Sparse pinprick stars inside the opening.
-  vec2 grid = floor((p + 0.8) * 72.0);
-  vec2 cell = fract((p + 0.8) * 72.0) - 0.5;
-  float rnd = hash21(grid);
-  float star = step(0.982, rnd) * smoothstep(0.075, 0.0, length(cell));
-  col += vec3(0.32, 0.42, 1.0) * star * (0.7 + 0.3 * sin(t * 1.7 + rnd * 20.0));
-
-  // Dim blue rim and ragged outward wisps; never lifts the screen boundary.
-  float rim = exp(-abs(r - edge) * (95.0 / max(uGlowReach * 9.0, 0.2)));
-  float halo = exp(-max(r - edge, 0.0) * 32.0) * (1.0 - inside);
-  col += vec3(0.06, 0.025, 0.72) * rim * 0.22 * uGlow;
-  col += vec3(0.025, 0.008, 0.22) * halo * 0.20 * uBleed;
-  col *= inside + rim * 0.85 + halo * 0.18;
-
-  col = col / (col + vec3(0.72));
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
-
-// ---- WebGL setup ----
-function createShader(type, source) {
-  const s = gl.createShader(type);
-  gl.shaderSource(s, source);
-  gl.compileShader(s);
-  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error('Shader error:', gl.getShaderInfoLog(s));
-    gl.deleteShader(s);
-    return null;
-  }
-  return s;
-}
-
-// Cheap Android projector chipsets struggle with the full procedural shader.
-// Compile a lighter variant automatically while preserving full quality on Macs.
-const projectorMode = /Android|AFT|SmartTV|TV Browser/i.test(navigator.userAgent)
-  && !/[Mm]acintosh/.test(navigator.userAgent);
-const activeFragSrc = vortexFragSrc;
-
-const vs = createShader(gl.VERTEX_SHADER, vertSrc);
-const fs = createShader(gl.FRAGMENT_SHADER, activeFragSrc);
-const prog = gl.createProgram();
-gl.attachShader(prog, vs);
-gl.attachShader(prog, fs);
-gl.linkProgram(prog);
-if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-  console.error('Link error:', gl.getProgramInfoLog(prog));
-}
-gl.useProgram(prog);
-
-const buf = gl.createBuffer();
-gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-const posLoc = gl.getAttribLocation(prog, 'pos');
-gl.enableVertexAttribArray(posLoc);
-gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
-const uRes = gl.getUniformLocation(prog, 'uRes');
-const uTime = gl.getUniformLocation(prog, 'uTime');
-const uSpeed = gl.getUniformLocation(prog, 'uSpeed');
-const uCrackWidth = gl.getUniformLocation(prog, 'uCrackWidth');
-const uGlow = gl.getUniformLocation(prog, 'uGlow');
-const uGlowReach = gl.getUniformLocation(prog, 'uGlowReach');
-const uJagged = gl.getUniformLocation(prog, 'uJagged');
-const uNebula = gl.getUniformLocation(prog, 'uNebula');
-const uSwirl = gl.getUniformLocation(prog, 'uSwirl');
-const uBleed = gl.getUniformLocation(prog, 'uBleed');
-const uProjectorBoost = gl.getUniformLocation(prog, 'uProjectorBoost');
-
-function resize() {
-  // CSS stretches this smaller Android framebuffer to the screen. On a ceiling
-  // the softness is negligible, while the GPU workload falls by roughly 60%.
-  const dpr = projectorMode ? 0.38 : Math.min(window.devicePixelRatio || 1, 1.5);
-  canvas.width = Math.max(480, Math.floor(window.innerWidth * dpr));
-  canvas.height = Math.max(270, Math.floor(window.innerHeight * dpr));
-  gl.viewport(0, 0, canvas.width, canvas.height);
-}
-window.addEventListener('resize', resize);
-resize();
-
-const els = {
-  speed: document.getElementById('speed'),
-  crackWidth: document.getElementById('crackWidth'),
-  glow: document.getElementById('glow'),
-  glowReach: document.getElementById('glowReach'),
-  jagged: document.getElementById('jagged'),
-  nebula: document.getElementById('nebula'),
-  swirl: document.getElementById('swirl'),
-  bleed: document.getElementById('bleed'),
-};
-
-function toggleFullscreen() {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-  } else {
-    document.exitFullscreen();
-  }
-}
-
-const startTime = performance.now();
-function frame() {
-  const t = (performance.now() - startTime) / 1000.0;
-  gl.uniform2f(uRes, canvas.width, canvas.height);
-  gl.uniform1f(uTime, t);
-  gl.uniform1f(uSpeed, parseFloat(els.speed.value));
-  gl.uniform1f(uCrackWidth, parseFloat(els.crackWidth.value));
-  gl.uniform1f(uGlow, parseFloat(els.glow.value));
-  gl.uniform1f(uGlowReach, parseFloat(els.glowReach.value));
-  gl.uniform1f(uJagged, parseFloat(els.jagged.value));
-  gl.uniform1f(uNebula, parseFloat(els.nebula.value));
-  gl.uniform1f(uSwirl, parseFloat(els.swirl.value));
-  gl.uniform1f(uBleed, parseFloat(els.bleed.value));
-  gl.uniform1f(uProjectorBoost, projectorMode ? 2.25 : 1.35);
-  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  requestAnimationFrame(frame);
-}
-frame();
-
-let cursorTimeout;
-document.addEventListener('mousemove', () => {
-  document.body.style.cursor = 'default';
-  clearTimeout(cursorTimeout);
-  cursorTimeout = setTimeout(() => {
-    document.body.style.cursor = 'none';
-  }, 3000);
-});
+['mousemove','pointermove','touchstart'].forEach(event=>document.addEventListener(event,wake,{passive:true}));
+document.getElementById('full').onclick=()=>document.fullscreenElement?document.exitFullscreen():document.documentElement.requestFullscreen();
+document.getElementById('reset').onclick=()=>{state={...defaults};apply()};
+document.addEventListener('keydown',e=>{if(e.key.toLowerCase()==='f')document.getElementById('full').click()});
+apply();wake();
+})();
 </script>
 </body>
 </html>
