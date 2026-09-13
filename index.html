@@ -57,7 +57,7 @@
 
 <div id="controls">
   <label><span>Speed</span> <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1"></label>
-  <label><span>Crack width</span> <input type="range" id="crackWidth" min="0.01" max="0.12" step="0.005" value="0.045"></label>
+  <label><span>Vortex size</span> <input type="range" id="crackWidth" min="0.01" max="0.12" step="0.005" value="0.045"></label>
   <label><span>Glow intensity</span> <input type="range" id="glow" min="0.5" max="4" step="0.1" value="2"></label>
   <label><span>Glow reach</span> <input type="range" id="glowReach" min="0.02" max="0.2" step="0.005" value="0.08"></label>
   <label><span>Jaggedness</span> <input type="range" id="jagged" min="0.5" max="4" step="0.1" value="2"></label>
@@ -357,6 +357,82 @@ void main() {
 }
 `;
 
+// Lightweight blue-black vortex: designed for weak projector GPUs.
+// It uses polar bands and inexpensive hashes instead of multi-octave 3D noise.
+const vortexFragSrc = `
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform vec2 uRes;
+uniform float uTime;
+uniform float uSpeed;
+uniform float uCrackWidth;
+uniform float uGlow;
+uniform float uGlowReach;
+uniform float uJagged;
+uniform float uNebula;
+uniform float uSwirl;
+uniform float uBleed;
+uniform float uProjectorBoost;
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 345.45));
+  p += dot(p, p + 34.345);
+  return fract(p.x * p.y);
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / uRes;
+  float aspect = uRes.x / uRes.y;
+  vec2 p = uv - vec2(0.36, 0.58);
+  p.x *= aspect;
+  float r = length(p);
+  float a = atan(p.y, p.x);
+  float t = uTime * uSpeed;
+
+  float radius = 0.30 + uCrackWidth * 1.25;
+  float teeth = sin(a * 7.0 + 0.8) * 0.035
+              + sin(a * 13.0 - 1.7) * 0.018
+              + sin(a * 23.0 + 2.4) * 0.009;
+  teeth *= clamp(uJagged * 0.58, 0.35, 2.1);
+  float edge = radius * (1.0 + teeth);
+  float inside = smoothstep(edge + 0.008, edge - 0.012, r);
+
+  // Broad rotating arms, with a dark central well.
+  float spiral = a * 2.0 - r * (24.0 + uSwirl * 7.0) + t * 0.34;
+  float arms = 0.5 + 0.5 * sin(spiral + sin(a * 3.0 - t * 0.11) * 0.8);
+  arms = pow(arms, 2.0);
+  float fine = 0.5 + 0.5 * sin(a * 5.0 - r * 43.0 + t * 0.22);
+  float cloud = clamp(arms * 0.82 + fine * 0.20, 0.0, 1.0) * uNebula;
+  float centerWell = smoothstep(0.035, 0.17, r);
+  float outerFalloff = smoothstep(edge, edge * 0.34, r);
+
+  vec3 deep = vec3(0.002, 0.0, 0.025);
+  vec3 cobalt = vec3(0.015, 0.025, 0.72);
+  vec3 electricBlue = vec3(0.035, 0.08, 1.15);
+  vec3 col = mix(deep, cobalt, cloud * 0.72);
+  col += electricBlue * pow(cloud, 3.0) * 0.52;
+  col *= centerWell * outerFalloff * uProjectorBoost;
+
+  // Sparse pinprick stars inside the opening.
+  vec2 grid = floor((p + 0.8) * 72.0);
+  vec2 cell = fract((p + 0.8) * 72.0) - 0.5;
+  float rnd = hash21(grid);
+  float star = step(0.982, rnd) * smoothstep(0.075, 0.0, length(cell));
+  col += vec3(0.32, 0.42, 1.0) * star * (0.7 + 0.3 * sin(t * 1.7 + rnd * 20.0));
+
+  // Dim blue rim and ragged outward wisps; never lifts the screen boundary.
+  float rim = exp(-abs(r - edge) * (95.0 / max(uGlowReach * 9.0, 0.2)));
+  float halo = exp(-max(r - edge, 0.0) * 32.0) * (1.0 - inside);
+  col += vec3(0.06, 0.025, 0.72) * rim * 0.22 * uGlow;
+  col += vec3(0.025, 0.008, 0.22) * halo * 0.20 * uBleed;
+  col *= inside + rim * 0.85 + halo * 0.18;
+
+  col = col / (col + vec3(0.72));
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
 // ---- WebGL setup ----
 function createShader(type, source) {
   const s = gl.createShader(type);
@@ -374,11 +450,7 @@ function createShader(type, source) {
 // Compile a lighter variant automatically while preserving full quality on Macs.
 const projectorMode = /Android|AFT|SmartTV|TV Browser/i.test(navigator.userAgent)
   && !/[Mm]acintosh/.test(navigator.userAgent);
-const activeFragSrc = projectorMode
-  ? fragSrc
-      .replace('for(int i = 0; i < 6; i++)', 'for(int i = 0; i < 4; i++)')
-      .replace('for(int i = 0; i < 3; i++)', 'for(int i = 0; i < 2; i++)')
-  : fragSrc;
+const activeFragSrc = vortexFragSrc;
 
 const vs = createShader(gl.VERTEX_SHADER, vertSrc);
 const fs = createShader(gl.FRAGMENT_SHADER, activeFragSrc);
@@ -413,9 +485,9 @@ const uProjectorBoost = gl.getUniformLocation(prog, 'uProjectorBoost');
 function resize() {
   // CSS stretches this smaller Android framebuffer to the screen. On a ceiling
   // the softness is negligible, while the GPU workload falls by roughly 60%.
-  const dpr = projectorMode ? 0.62 : Math.min(window.devicePixelRatio || 1, 2);
-  canvas.width = Math.max(640, Math.floor(window.innerWidth * dpr));
-  canvas.height = Math.max(360, Math.floor(window.innerHeight * dpr));
+  const dpr = projectorMode ? 0.38 : Math.min(window.devicePixelRatio || 1, 1.5);
+  canvas.width = Math.max(480, Math.floor(window.innerWidth * dpr));
+  canvas.height = Math.max(270, Math.floor(window.innerHeight * dpr));
   gl.viewport(0, 0, canvas.width, canvas.height);
 }
 window.addEventListener('resize', resize);
@@ -453,7 +525,7 @@ function frame() {
   gl.uniform1f(uNebula, parseFloat(els.nebula.value));
   gl.uniform1f(uSwirl, parseFloat(els.swirl.value));
   gl.uniform1f(uBleed, parseFloat(els.bleed.value));
-  gl.uniform1f(uProjectorBoost, projectorMode ? 1.9 : 1.0);
+  gl.uniform1f(uProjectorBoost, projectorMode ? 2.25 : 1.35);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   requestAnimationFrame(frame);
 }
